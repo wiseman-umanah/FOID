@@ -42,9 +42,9 @@ dev-dependencies = [
 ]
 
 [project.scripts]
-idra      = "app.__main__:serve"
-idra-dev  = "app.__main__:serve_dev"
-idra-test = "app.__main__:run_tests"
+foid      = "app.__main__:serve"
+foid-dev  = "app.__main__:serve_dev"
+foid-test = "app.__main__:run_tests"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

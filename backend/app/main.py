@@ -15,7 +15,11 @@ from .utils.limiter import limiter
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    await init_db()
+    settings = get_settings()
+    # In dev, auto-create tables for convenience.
+    # In production, schema is managed by Alembic — skip create_all.
+    if settings.ENV != "production":
+        await init_db()
     db_ok = await check_db()
     redis_ok = await redis_ping()
     print(f"  Database : {'✓ connected' if db_ok else '✗ unreachable'}")
@@ -32,9 +36,11 @@ app.add_exception_handler(
     _rate_limit_exceeded_handler,  # pyright: ignore[reportArgumentType]
 )
 
+allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS.split(","),
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

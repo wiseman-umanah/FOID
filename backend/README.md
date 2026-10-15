@@ -69,6 +69,9 @@ uv run pytest
 
 # Single test
 uv run pytest tests/path/test_file.py::test_function_name -v
+
+# Or via the script alias
+uv run foid-test
 ```
 
 ## Environment Variables

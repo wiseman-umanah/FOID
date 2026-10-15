@@ -1,8 +1,8 @@
 """CLI entry points — invoked via uv run or installed scripts.
 
-    uv run idra        → production server (port 8000)
-    uv run idra-dev    → dev server with --reload (port 8000)
-    uv run idra-test   → full pytest test suite
+    uv run foid        → production server (port 8000)
+    uv run foid-dev    → dev server with --reload (port 8000)
+    uv run foid-test   → full pytest test suite
 """
 
 import uvicorn
