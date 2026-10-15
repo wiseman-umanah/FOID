@@ -1,0 +1,8 @@
+.bob
+AGENTS.md
+.venv
+__pycache__
+.env 
+backend-plan.md
+.pytest_cache
+idra.db 
