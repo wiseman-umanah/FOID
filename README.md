@@ -1,24 +1,21 @@
-# IDRA — Identity & Digital Risk Assessment
+# FOID — Financial & Open Identity
 
-**IDRA** is a reusable, self-updating digital identity layer for Nigeria's open banking ecosystem. Verify your identity once, stay current automatically, and share only what's needed — wherever you go.
-
-
+**FOID** is a full-stack digital identity and financial management platform built for Nigeria's open banking ecosystem. Verify your identity once, link your bank accounts, manage your business ledger with AI, and share only what's needed — wherever you go.
 
 ---
 
-## What IDRA Does
+## What FOID Does
 
-IDRA combines three things into a single, always-current financial identity:
-
-1. **Verified Identity** — Complete Tier-2 KYC once and receive a single IDRA credential that replaces re-uploading documents everywhere.
-2. **Open Banking, Read-Only** — Link accounts from any major Nigerian bank or fintech in under a minute. You approve exactly what's shared, and it's revocable anytime.
-3. **AI-Kept Ledger** — Every receipt, invoice, and bank transaction is auto-categorised, tax is set aside automatically, and reports are always ready.
+1. **Verified Identity** — Complete Tier-2 KYC once and receive a single FOID credential that replaces re-uploading documents everywhere.
+2. **Open Banking, Read-Only** — Link accounts from any major Nigerian bank via Mono Connect in under a minute. Approvals are explicit and revocable anytime.
+3. **AI-Kept Ledger** — Upload receipts for Groq-powered OCR, get auto-categorised entries, tax estimates, and exportable reports (CSV + PDF).
+4. **AI Credit Wallet** — Purchase AI credits via Paystack to power ledger scans and in-app chat with your financial data.
 
 ---
 
 ## Credential State Machine
 
-The IDRA credential moves through four states driven by rule-based Open Banking events — no ML, no credit scoring:
+The FOID credential moves through four states driven by rule-based Open Banking events:
 
 | State | Meaning |
 |---|---|
@@ -32,10 +29,11 @@ The IDRA credential moves through four states driven by rule-based Open Banking 
 ## Architecture
 
 ```
-frontend/      — Vite + React + TypeScript (pnpm)   — port 5173
+frontend/   — Vite + React + TypeScript (pnpm)      — port 5173
+backend/    — FastAPI + SQLModel + Alembic (uv)      — port 8000
 ```
 
-The frontend is a fully self-contained simulation — all auth, KYC, and credential state logic runs in-browser using `localStorage`. No backend required to run the demo.
+The frontend communicates with the backend via a versioned REST API (`/api/v1`). Auth uses short-lived JWT access tokens + rotating refresh tokens.
 
 ---
 
@@ -48,15 +46,45 @@ The frontend is a fully self-contained simulation — all auth, KYC, and credent
 | Styling | Tailwind CSS v4 |
 | Routing | React Router v7 |
 | Charts | Recharts |
-| Icons | Remix Icon |
-| Fonts | CreatoDisplay, NeueMachina |
 | Package Manager | pnpm |
+| Backend | FastAPI + Uvicorn |
+| ORM | SQLModel (SQLAlchemy 2 + Pydantic v2) |
+| Migrations | Alembic |
+| Database | SQLite (dev) · PostgreSQL (production) |
+| AI | Groq (receipt OCR + chat) |
+| Open Banking | Mono Connect |
+| Payments | Paystack |
+| Rate Limiting | slowapi |
+| Cache | Redis (optional) |
+| Package Manager | uv |
 
 ---
 
 ## Getting Started
 
-See [`frontend/README.md`](frontend/README.md) for setup and run instructions.
+### Backend
+
+```bash
+cd backend
+uv sync
+cp .env.example .env   # fill in SECRET_KEY, GROQ_API_KEY, MONO_*, PAYSTACK_*
+uv run alembic upgrade head
+uv run foid-dev        # dev server with reload → http://localhost:8000
+```
+
+API docs: http://localhost:8000/docs  
+Health check: http://localhost:8000/health
+
+### Frontend
+
+```bash
+cd frontend
+pnpm install
+cp .env.example .env   # set VITE_MONO_PUBLIC_KEY and VITE_API_BASE_URL
+pnpm dev               # → http://localhost:5173
+```
+
+See [`backend/README.md`](backend/README.md) for full backend documentation.
 
 ---
 
@@ -65,7 +93,7 @@ See [`frontend/README.md`](frontend/README.md) for setup and run instructions.
 | Route | Page |
 |---|---|
 | `/` | Landing page |
-| `/signup` | Create IDRA account |
+| `/signup` | Create FOID account |
 | `/login` | Sign in |
 | `/dashboard` | Overview — stats, credential card, charts |
 | `/dashboard/identity` | My Identity — KYC status, trust ring |
@@ -73,12 +101,10 @@ See [`frontend/README.md`](frontend/README.md) for setup and run instructions.
 | `/dashboard/banks` | Connected Banks — Open Banking links |
 | `/dashboard/consents` | Consent Requests — data sharing approvals |
 | `/dashboard/ledger` | Business Ledger — AI-categorised transactions |
-| `/dashboard/history` | Ledger History |
 | `/dashboard/wallet` | AI Credit Wallet |
 | `/dashboard/reports` | Reports & Insights |
 | `/dashboard/settings` | Profile & Settings |
 
 ---
 
-
-&copy; 2025 IDRA. Built for Nigerian founders and freelancers.
+&copy; 2025 FOID. Built for Nigerian founders and freelancers.

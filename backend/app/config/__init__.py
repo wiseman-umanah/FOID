@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./idra.db"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./foid.db"
 
     # JWT
     SECRET_KEY: str = "change-me-in-production"

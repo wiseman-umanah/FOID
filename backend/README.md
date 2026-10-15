@@ -1,6 +1,6 @@
-# IDRA Backend
+# FOID Backend
 
-FastAPI backend for the IDRA Identity & Digital Risk Assessment platform.
+FastAPI backend for the FOID (Financial & Open Identity) platform.
 
 ## Stack
 
@@ -31,7 +31,7 @@ uv sync
 cp .env.example .env
 # Edit .env — at minimum set SECRET_KEY, GROQ_API_KEY, MONO_*, PAYSTACK_*
 
-# 4. Apply database migrations (creates idra.db for SQLite dev)
+# 4. Apply database migrations (creates foid.db for SQLite dev)
 uv run alembic upgrade head
 ```
 
@@ -39,7 +39,7 @@ uv run alembic upgrade head
 
 ```bash
 cd backend
-uv run uvicorn app.main:app --reload --port 8000
+uv run foid-dev
 ```
 
 API docs available at: http://localhost:8000/docs  
@@ -80,7 +80,7 @@ See [`.env.example`](.env.example) for the full list with descriptions.
 
 | Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | No | Defaults to `sqlite+aiosqlite:///./idra.db` |
+| `DATABASE_URL` | No | Defaults to `sqlite+aiosqlite:///./foid.db` |
 | `SECRET_KEY` | **Yes** | JWT signing key — must be strong and secret |
 | `GROQ_API_KEY` | **Yes** | Groq API key for AI ledger features |
 | `MONO_PUBLIC_KEY` | **Yes** | Mono Connect public key |
