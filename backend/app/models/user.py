@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from .ledger_entry import LedgerEntry  # pyright: ignore[reportImportCycles]
     from .notification import Notification  # pyright: ignore[reportImportCycles]
     from .refresh_token import RefreshToken  # pyright: ignore[reportImportCycles]
+    from .user_preferences import UserPreferences  # pyright: ignore[reportImportCycles]
     from .wallet import Wallet  # pyright: ignore[reportImportCycles]
 
 
@@ -70,6 +71,10 @@ class User(SQLModel, table=True):
         sa_relationship_kwargs={"lazy": "selectin", "cascade": "all, delete-orphan"},
     )
     ledger_entries: list["LedgerEntry"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"lazy": "selectin", "cascade": "all, delete-orphan"},
+    )
+    preferences: Optional["UserPreferences"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"lazy": "selectin", "cascade": "all, delete-orphan"},
     )

@@ -10,6 +10,7 @@ from .consents import router as consents_router
 from .credentials import router as credentials_router
 from .ledger import router as ledger_router
 from .notifications import router as notifications_router
+from .preferences import router as preferences_router
 from .reports import router as reports_router
 from .wallet import router as wallet_router
 
@@ -20,6 +21,7 @@ __all__ = [
     "credentials_router",
     "ledger_router",
     "notifications_router",
+    "preferences_router",
     "reports_router",
     "wallet_router",
 ]

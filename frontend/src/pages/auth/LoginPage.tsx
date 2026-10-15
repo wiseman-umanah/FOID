@@ -5,13 +5,13 @@ import IdraWordmark from '@/components/IdraWordmark'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { login, isAuthenticated } = useAuth()
+  const { login, isAuthenticated, loading } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({ email: '', password: '' })
 
-  // Redirect if already authenticated
-  if (isAuthenticated) {
+  // Redirect if already authenticated (wait for session restore first)
+  if (!loading && isAuthenticated) {
     navigate('/dashboard', { replace: true })
   }
 

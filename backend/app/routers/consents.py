@@ -5,10 +5,11 @@ Endpoints:
   POST   /consents              — create a new consent request
   PATCH  /consents/{id}         — approve or revoke a consent
 
-The seed function is called from auth signup to insert demo consents.
+_seed_demo_consents() is called from auth signup to give new users demo data.
 """
 
 from __future__ import annotations
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
@@ -21,6 +22,37 @@ from ..models.user import User
 from ..schemas.consent import ConsentCreate, ConsentOut, ConsentUpdate
 
 router = APIRouter(prefix="/consents", tags=["consents"])
+
+
+def _seed_demo_consents(user_id: str) -> list[Consent]:
+    """Return three demo pending Consent rows for a brand-new user."""
+    now = datetime.now(timezone.utc)
+    return [
+        Consent(
+            user_id=user_id,
+            platform="Wema Bank",
+            scope="Identity verification · BVN · Income band",
+            status="pending",
+            logo_url="https://upload.wikimedia.org/wikipedia/en/thumb/6/6e/Wema_Bank_logo.svg/200px-Wema_Bank_logo.svg.png",
+            expires_at=now + timedelta(days=30),
+        ),
+        Consent(
+            user_id=user_id,
+            platform="Carbon",
+            scope="Identity verification · Repayment reliability",
+            status="pending",
+            logo_url=None,
+            expires_at=now + timedelta(days=14),
+        ),
+        Consent(
+            user_id=user_id,
+            platform="Cowrywise",
+            scope="Identity verification · Age verification · Income band",
+            status="pending",
+            logo_url=None,
+            expires_at=None,
+        ),
+    ]
 
 
 @router.get("", response_model=list[ConsentOut])

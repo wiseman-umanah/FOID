@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async (): Promise<void> => {
     try {
-      const stored = localStorage.getItem('foid_refresh_token')
+      const stored = localStorage.getItem('idra_refresh_token')
       if (stored) {
         await api.post('/auth/logout', { refresh_token: stored })
       }

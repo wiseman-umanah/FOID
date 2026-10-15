@@ -71,6 +71,7 @@ v1_router.include_router(consents_router)
 v1_router.include_router(credentials_router)
 v1_router.include_router(ledger_router)
 v1_router.include_router(notifications_router)
+v1_router.include_router(preferences_router)
 v1_router.include_router(reports_router)
 v1_router.include_router(wallet_router)
 

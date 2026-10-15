@@ -1,9 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import MonoConnect from '@mono.co/connect.js'
 import RemixIcon from '@/components/RemixIcon'
 import StatCard from '@/components/StatCard'
 import type { ConnectedBank } from '@/types/idra'
 import { api } from '@/lib/api'
+
+/* ── Transaction type ────────────────────────────────────────────────── */
+interface BankTx {
+  id: string
+  amount: number
+  type: string
+  balance: number
+  date: string
+  narration: string
+  category: string | null
+}
 
 /* ── Helpers ────────────────────────────────────────────────────────── */
 function lastSyncLabel(bank: ConnectedBank): string {
@@ -51,6 +63,104 @@ function VerifiedBadge() {
       </svg>
       Verified
     </span>
+  )
+}
+
+/* ── Transactions drawer ─────────────────────────────────────────────── */
+function TransactionsDrawer({ bank, onClose }: { bank: ConnectedBank; onClose: () => void }) {
+  const [txs, setTxs]       = useState<BankTx[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]   = useState('')
+
+  useEffect(() => {
+    setLoading(true)
+    setError('')
+    api.get<BankTx[]>(`/banks/${bank.id}/transactions?limit=50`)
+      .then(res => setTxs(res.data))
+      .catch(() => setError('Could not load transactions — Mono sandbox may require a linked test account.'))
+      .finally(() => setLoading(false))
+  }, [bank.id])
+
+  const naira = (n: number) => '₦' + Math.abs(n).toLocaleString('en-NG')
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.35)' }} onClick={onClose}>
+      <div
+        className="relative bg-white h-full w-full max-w-[480px] flex flex-col shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-neutral-100 shrink-0">
+          <div>
+            <div className="font-bold text-[16px] text-neutral-900">{bank.name}</div>
+            <div className="text-[12px] text-neutral-400 mt-0.5">
+              {bank.masked_number ? `···· ${bank.masked_number.slice(-4)}` : 'Transaction history'}
+              {bank.account_type ? ` · ${bank.account_type}` : ''}
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-neutral-100 transition-colors">
+            <RemixIcon name="ri-close-line" size={18} color="#71717a" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto">
+          {loading && (
+            <div className="flex items-center justify-center h-40 text-[13px] text-neutral-400">Loading…</div>
+          )}
+          {!loading && error && (
+            <div className="flex flex-col items-center justify-center h-40 gap-2 px-6 text-center">
+              <RemixIcon name="ri-wifi-off-line" size={32} color="#d4d4d8" />
+              <p className="text-[13px] text-neutral-400">{error}</p>
+            </div>
+          )}
+          {!loading && !error && txs.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-40 gap-2">
+              <RemixIcon name="ri-inbox-line" size={32} color="#d4d4d8" />
+              <p className="text-[13px] text-neutral-400">No transactions found</p>
+            </div>
+          )}
+          {!loading && !error && txs.length > 0 && (
+            <div className="divide-y divide-neutral-100">
+              {txs.map(tx => {
+                const isCredit = tx.type === 'credit'
+                return (
+                  <div key={tx.id} className="flex items-center gap-4 px-6 py-4 hover:bg-neutral-50 transition-colors">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: isCredit ? '#dcfce7' : '#fee2e2' }}
+                    >
+                      <RemixIcon
+                        name={isCredit ? 'ri-arrow-left-down-line' : 'ri-arrow-right-up-line'}
+                        size={16}
+                        color={isCredit ? '#16a34a' : '#dc2626'}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-neutral-900 truncate">{tx.narration}</div>
+                      <div className="text-[11.5px] text-neutral-400 mt-0.5">
+                        {new Date(tx.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {tx.category ? ` · ${tx.category}` : ''}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div
+                        className="text-[14px] font-bold"
+                        style={{ color: isCredit ? '#16a34a' : '#dc2626' }}
+                      >
+                        {isCredit ? '+' : '-'}{naira(tx.amount)}
+                      </div>
+                      <div className="text-[11px] text-neutral-400 mt-0.5">Bal: {naira(tx.balance)}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -146,6 +256,8 @@ export default function ConnectedBankPage() {
   const [banks, setBanks] = useState<ConnectedBank[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [selectedBank, setSelectedBank] = useState<ConnectedBank | null>(null)
+  const [combinedBalance, setCombinedBalance] = useState<number | null>(null)
 
   const fetchBanks = useCallback(async () => {
     try {
@@ -159,6 +271,14 @@ export default function ConnectedBankPage() {
   }, [])
 
   useEffect(() => { void fetchBanks() }, [fetchBanks])
+
+  // Fetch combined balance whenever the banks list changes (and is non-empty)
+  useEffect(() => {
+    if (banks.length === 0) { setCombinedBalance(null); return }
+    void api.get<{ total_balance: number }>('/banks/combined-balance')
+      .then(r => setCombinedBalance(r.data.total_balance))
+      .catch(() => setCombinedBalance(null))
+  }, [banks.length])
 
   const handleDisconnect = async (id: string) => {
     try {
@@ -213,7 +333,7 @@ export default function ConnectedBankPage() {
         />
         <StatCard
           label="Combined Balance"
-          value="₦—"
+          value={combinedBalance !== null ? '₦' + combinedBalance.toLocaleString('en-NG') : '₦—'}
           sub="Across all linked accounts"
           subColor="text-neutral-400"
           icon="ri-coin-line"
@@ -255,7 +375,8 @@ export default function ConnectedBankPage() {
           {banks.map(bank => (
             <div
               key={bank.id}
-              className="flex items-center justify-between px-6 py-4 hover:bg-neutral-50/60 transition-colors"
+              className="flex items-center justify-between px-6 py-4 hover:bg-neutral-50/60 transition-colors cursor-pointer"
+              onClick={() => setSelectedBank(bank)}
             >
               {/* Left: logo + name + account info */}
               <div className="flex items-center gap-4 min-w-0 flex-1">
@@ -295,13 +416,13 @@ export default function ConnectedBankPage() {
                 )}
 
                 <button
-                  onClick={() => void handleSync(bank.id)}
+                  onClick={e => { e.stopPropagation(); void handleSync(bank.id) }}
                   className="px-4 py-1.5 rounded-full border border-neutral-200 text-[12px] font-semibold text-neutral-700 hover:bg-neutral-50 hover:border-neutral-300 transition-colors whitespace-nowrap"
                 >
                   Sync
                 </button>
                 <button
-                  onClick={() => void handleDisconnect(bank.id)}
+                  onClick={e => { e.stopPropagation(); void handleDisconnect(bank.id) }}
                   className="px-4 py-1.5 rounded-full border border-neutral-200 text-[12px] font-semibold text-neutral-700 hover:bg-neutral-50 hover:border-neutral-300 transition-colors whitespace-nowrap"
                 >
                   Disconnect
@@ -316,6 +437,13 @@ export default function ConnectedBankPage() {
         <AddBankModal
           onClose={() => setShowAddModal(false)}
           onConnected={fetchBanks}
+        />
+      )}
+
+      {selectedBank && (
+        <TransactionsDrawer
+          bank={selectedBank}
+          onClose={() => setSelectedBank(null)}
         />
       )}
     </div>

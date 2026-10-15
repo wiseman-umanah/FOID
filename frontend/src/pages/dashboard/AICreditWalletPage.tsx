@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import RemixIcon from '@/components/RemixIcon'
 import StatCard from '@/components/StatCard'
 import type { Wallet, WalletTransaction } from '@/types/idra'
@@ -56,11 +57,93 @@ function formatDate(iso: string): string {
   })
 }
 
+/* ── Auto top-up modal ───────────────────────────────────────────────── */
+function AutoTopupModal({
+  current,
+  onClose,
+  onSave,
+}: {
+  current: number | null
+  onClose: () => void
+  onSave: (threshold: number | null) => void
+}) {
+  const [value, setValue] = useState(current !== null ? String(current) : '')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    const threshold = value.trim() === '' ? null : parseInt(value, 10)
+    try {
+      const res = await api.post<Wallet>('/wallet/auto-topup', { threshold })
+      onSave(res.data.auto_topup_threshold)
+      onClose()
+    } catch {
+      alert('Failed to update auto top-up. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 flex flex-col gap-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-bold text-[16px] text-neutral-900">Auto Top-Up</div>
+            <div className="text-[12px] text-neutral-400 mt-0.5">
+              Automatically buy the Starter Pack when your balance drops below this threshold
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-neutral-100 transition-colors">
+            <RemixIcon name="ri-close-line" size={18} color="#71717a" />
+          </button>
+        </div>
+
+        <div>
+          <label className="block text-[13px] font-medium text-neutral-800 mb-2">
+            Threshold (credits) — leave blank to disable
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            placeholder="e.g. 500"
+            className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-[13px] outline-none focus:border-brand-400 transition-colors"
+          />
+          <p className="text-[11.5px] text-neutral-400 mt-1.5">
+            When your balance falls below this number, the Starter Pack (5,000 credits) will be purchased automatically.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-full border border-neutral-200 text-[13px] font-bold text-neutral-800 hover:bg-neutral-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-full text-[13px] font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            style={{ background: '#c026d3' }}
+          >
+            {saving ? 'Saving…' : value.trim() === '' ? 'Disable' : 'Save threshold'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 /* ── Page ───────────────────────────────────────────────────────────── */
 export default function AiCreditWallet() {
-  const [wallet, setWallet]   = useState<Wallet | null>(null)
-  const [buying, setBuying]   = useState<PkgKey | null>(null)
-  const packagesRef           = useRef<HTMLDivElement>(null)
+  const [wallet, setWallet]       = useState<Wallet | null>(null)
+  const [buying, setBuying]       = useState<PkgKey | null>(null)
+  const [showTopup, setShowTopup] = useState(false)
+  const packagesRef               = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void api.get<Wallet>('/wallet').then(res => setWallet(res.data))
@@ -87,6 +170,7 @@ export default function AiCreditWallet() {
   }
 
   return (
+    <>
     <div className="flex flex-col gap-5">
 
       {/* ── Header ── */}
@@ -167,8 +251,11 @@ export default function AiCreditWallet() {
             >
               Buy Credits
             </button>
-            <button className="flex-1 py-2.5 rounded-full text-[13px] font-bold border border-neutral-200 bg-white hover:bg-neutral-50 transition-colors text-neutral-900">
-              Auto Top-up
+            <button
+              onClick={() => setShowTopup(true)}
+              className="flex-1 py-2.5 rounded-full text-[13px] font-bold border border-neutral-200 bg-white hover:bg-neutral-50 transition-colors text-neutral-900"
+            >
+              {wallet?.auto_topup_threshold ? 'Edit Auto Top-up' : 'Auto Top-up'}
             </button>
           </div>
         </div>
@@ -347,5 +434,14 @@ export default function AiCreditWallet() {
       </div>
 
     </div>
+
+    {showTopup && wallet && (
+      <AutoTopupModal
+        current={wallet.auto_topup_threshold}
+        onClose={() => setShowTopup(false)}
+        onSave={threshold => setWallet(prev => prev ? { ...prev, auto_topup_threshold: threshold } : prev)}
+      />
+    )}
+    </>
   )
 }

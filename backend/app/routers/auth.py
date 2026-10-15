@@ -2,16 +2,18 @@
 
 Endpoints
 ---------
-POST /api/v1/auth/signup         Register a new user
-POST /api/v1/auth/login          Exchange credentials for tokens
-POST /api/v1/auth/refresh        Exchange a refresh token for a new access token
-POST /api/v1/auth/logout         Revoke the supplied refresh token
-GET  /api/v1/auth/me             Return the authenticated user's profile
+POST /api/v1/auth/signup              Register a new user
+POST /api/v1/auth/login               Exchange credentials for tokens
+POST /api/v1/auth/refresh             Exchange a refresh token for a new access token
+POST /api/v1/auth/logout              Revoke the supplied refresh token
+GET  /api/v1/auth/me                  Return the authenticated user's profile
+POST /api/v1/auth/me/utility-bill     Upload a utility bill for address verification
 """
 
+from pathlib import Path
 from typing import Annotated, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession  # has .exec() unlike sqlalchemy's AsyncSession
@@ -67,6 +69,7 @@ async def signup(
     Also seeds:
     - A ``Credential`` row (state=active, full claims)
     - A ``Wallet`` row (balance=0)
+    - Three demo ``Consent`` rows (pending) so the dashboard is not empty
     """
     # Check email uniqueness
     existing = await db.exec(select(User).where(User.email == body.email))
@@ -101,6 +104,11 @@ async def signup(
         claims=cast(CredentialClaims, cast(object, dict(DEFAULT_CLAIMS))),
     ))
     db.add(Wallet(user_id=user.id, balance=0))
+
+    # Seed demo consent requests so new users see real data immediately
+    from .consents import _seed_demo_consents
+    for consent in _seed_demo_consents(user.id):
+        db.add(consent)
 
     db.add(RefreshToken(
         user_id=user.id,
@@ -373,8 +381,8 @@ async def identity_summary(
     row("State",                state_label)
     row("Identity verified",    "Yes" if claims.get("identity_verified") else "No")
     row("BVN validated",        "Yes" if claims.get("bvn_validated") else "No")
-    row("Account stability",    str(claims.get("account_stability", "—")).title())
-    row("Repayment reliability", str(claims.get("repayment_reliability", "—")).title())
+    row("Account stability",    str(claims.get("account_stability", "-")).title())
+    row("Repayment reliability", str(claims.get("repayment_reliability", "-")).title())
     if cred:
         row("Issued",           cred.issued_at.strftime("%d %B %Y"))
         row("Last updated",     cred.updated_at.strftime("%d %B %Y"))
@@ -449,3 +457,43 @@ async def change_password(
     current_user.hashed_password = hash_password(body.new_password)
     db.add(current_user)
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/me/utility-bill  — upload address-verification document
+# ---------------------------------------------------------------------------
+
+_UTILITY_DIR = Path("uploads/utility_bills")
+_MAX_UTILITY_BYTES = 10 * 1024 * 1024  # 10 MB
+_ALLOWED_UTILITY_MIME = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+
+
+@router.post("/me/utility-bill", status_code=status.HTTP_204_NO_CONTENT)
+async def upload_utility_bill(
+    file: Annotated[UploadFile, File(description="Utility bill image or PDF, max 10 MB")],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """Accept and store a utility bill for address verification.
+
+    The file is saved to disk; a manual review step would follow in production.
+    Returns 204 on success — no body.
+    """
+    import uuid as _uuid
+
+    if file.content_type not in _ALLOWED_UTILITY_MIME:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported file type '{file.content_type}'. Allowed: JPEG, PNG, WebP, PDF",
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > _MAX_UTILITY_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File too large — maximum 10 MB",
+        )
+
+    _UTILITY_DIR.mkdir(parents=True, exist_ok=True)
+    ext = Path(file.filename or "bill").suffix or ".bin"
+    dest = _UTILITY_DIR / f"{current_user.id}_{_uuid.uuid4()}{ext}"
+    dest.write_bytes(file_bytes)

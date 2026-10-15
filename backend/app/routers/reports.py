@@ -105,7 +105,7 @@ async def export_csv(
         writer.writerow([r["month"], r["income"], r["expense"], r["net"], r["tax"]])
 
     buf.seek(0)
-    filename = f"idra_report_{date.today().isoformat()}.csv"
+    filename = f"foid_report_{date.today().isoformat()}.csv"
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",
@@ -138,7 +138,7 @@ async def export_pdf(
     pdf.set_font("Helvetica", "B", 15)
     pdf.set_text_color(255, 255, 255)
     pdf.set_xy(12, 5)
-    pdf.cell(0, 10, "IDRA - Reports & Insights", ln=False)
+    pdf.cell(0, 10, "FOID - Reports & Insights", ln=False)
     pdf.set_font("Helvetica", "", 9)
     pdf.set_xy(12, 14)
     pdf.cell(0, 6, f"Generated {now.strftime('%d %b %Y %H:%M UTC')}  |  {current_user.first_name} {current_user.last_name}")
@@ -205,9 +205,9 @@ async def export_pdf(
     pdf.set_y(-16)
     pdf.set_font("Helvetica", "", 8)
     pdf.set_text_color(156, 163, 175)
-    pdf.cell(0, 6, "IDRA - Identity & Digital Risk Assessment | This report is system-generated", align="C")
+    pdf.cell(0, 6, "FOID - Financial & Open Identity | This report is system-generated", align="C")
 
-    filename = f"idra_report_{date.today().isoformat()}.pdf"
+    filename = f"foid_report_{date.today().isoformat()}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf.output()),
         media_type="application/pdf",
@@ -271,7 +271,7 @@ async def monthly_pdf(
     pdf.set_font("Helvetica", "B", 14)
     pdf.set_text_color(255, 255, 255)
     pdf.set_xy(14, 5)
-    pdf.cell(0, 10, f"IDRA - Monthly Audit: {month_label}", ln=False)
+    pdf.cell(0, 10, f"FOID - Monthly Audit: {month_label}", ln=False)
     pdf.set_font("Helvetica", "", 8)
     pdf.set_xy(14, 15)
     pdf.cell(0, 6, f"Generated {now.strftime('%d %b %Y %H:%M UTC')}  |  {current_user.first_name} {current_user.last_name}")
@@ -363,9 +363,9 @@ async def monthly_pdf(
     pdf.set_y(-16)
     pdf.set_font("Helvetica", "", 8)
     pdf.set_text_color(156, 163, 175)
-    pdf.cell(0, 6, "IDRA - Identity & Digital Risk Assessment | This report is system-generated", align="C")
+    pdf.cell(0, 6, "FOID - Financial & Open Identity | This report is system-generated", align="C")
 
-    filename = f"idra_audit_{month}.pdf"
+    filename = f"foid_audit_{month}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf.output()),
         media_type="application/pdf",

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import RemixIcon from '../../components/RemixIcon'
 import StatCard from '../../components/StatCard'
@@ -149,12 +149,13 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
 /* ── Utility bill upload modal ───────────────────────────────────────── */
 function UtilityBillModal({ onClose }: { onClose: () => void }) {
-  const [dragging, setDragging] = useState(false)
-  const [file, setFile]         = useState<File | null>(null)
+  const [dragging, setDragging]   = useState(false)
+  const [file, setFile]           = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
-  const fileRef                 = useRef<HTMLInputElement>(null)
+  const [error, setError]         = useState('')
+  const fileRef                   = useRef<HTMLInputElement>(null)
 
-  const handleFile = (f: File) => setFile(f)
+  const handleFile = (f: File) => { setFile(f); setError('') }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDragging(false)
@@ -165,10 +166,20 @@ function UtilityBillModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = async () => {
     if (!file) return
     setUploading(true)
-    // Simulate upload delay — no real endpoint for utility bill yet
-    await new Promise(r => setTimeout(r, 1200))
-    setUploading(false)
-    onClose()
+    setError('')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      await api.post('/auth/me/utility-bill', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      onClose()
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : 'Upload failed. Please try again.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   return createPortal(
@@ -211,6 +222,7 @@ function UtilityBillModal({ onClose }: { onClose: () => void }) {
         </div>
         <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
 
+        {error && <p className="text-[12.5px] text-red-600">{error}</p>}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-full border border-neutral-200 text-[13px] font-bold text-neutral-800 hover:bg-neutral-50 transition-colors">
             Cancel
@@ -259,6 +271,16 @@ function DocRow({ icon, name, sub, status, onAdd }: { icon: string; name: string
 /* ═══════════════════════════════════════════════════════════════════════
    Page
 ══════════════════════════════════════════════════════════════════════ */
+interface Prefs {
+  two_fa_enabled: boolean
+  biometric_enabled: boolean
+  login_alerts_enabled: boolean
+  notif_verification_alerts: boolean
+  notif_consent_alerts: boolean
+  notif_ai_nudges: boolean
+  notif_weekly_digest: boolean
+}
+
 export default function ProfileSettingsPage() {
   const { user, refreshUser } = useAuth()
 
@@ -271,16 +293,31 @@ export default function ProfileSettingsPage() {
   const [showPassword, setShowPassword]   = useState(false)
   const [showUtility, setShowUtility]     = useState(false)
 
-  /* Security toggles (UI-only for demo) */
-  const [twoFa, setTwoFa]         = useState(true)
-  const [biometric, setBiometric] = useState(true)
-  const [loginAlerts, setLogin]   = useState(true)
+  /* Preferences — loaded from backend */
+  const [prefs, setPrefs] = useState<Prefs>({
+    two_fa_enabled: true,
+    biometric_enabled: true,
+    login_alerts_enabled: true,
+    notif_verification_alerts: true,
+    notif_consent_alerts: true,
+    notif_ai_nudges: true,
+    notif_weekly_digest: false,
+  })
 
-  /* Notification toggles (UI-only for demo) */
-  const [verificationAlerts, setVerification] = useState(true)
-  const [consentAlerts, setConsent]           = useState(true)
-  const [aiNudges, setAiNudges]               = useState(true)
-  const [weeklyDigest, setWeekly]             = useState(false)
+  useEffect(() => {
+    void api.get<Prefs>('/preferences').then(r => setPrefs(r.data)).catch(() => {})
+  }, [])
+
+  const togglePref = async (key: keyof Prefs) => {
+    const next = { ...prefs, [key]: !prefs[key] }
+    setPrefs(next)  // optimistic
+    try {
+      const res = await api.patch<Prefs>('/preferences', { [key]: next[key] })
+      setPrefs(res.data)
+    } catch {
+      setPrefs(prefs)  // revert on failure
+    }
+  }
 
   const handleSaveAddress = async () => {
     if (!address.trim()) return
@@ -371,9 +408,9 @@ export default function ProfileSettingsPage() {
         <div className="bg-white rounded-2xl border border-neutral-100 p-6 shadow-sm">
           <h2 className="text-[15px] font-bold text-neutral-900 mb-2">Security</h2>
           <div>
-            <SecurityRow label="Two-factor authentication" sub="Require a code from your phone when signing in" on={twoFa}       onChange={() => setTwoFa(v => !v)}       />
-            <SecurityRow label="Biometric unlock"          sub="Use Face ID / fingerprint on this device"       on={biometric}   onChange={() => setBiometric(v => !v)}   />
-            <SecurityRow label="Login alerts"              sub="Email me when there's a new sign-in"            on={loginAlerts} onChange={() => setLogin(v => !v)}       />
+            <SecurityRow label="Two-factor authentication" sub="Require a code from your phone when signing in" on={prefs.two_fa_enabled}        onChange={() => void togglePref('two_fa_enabled')}        />
+            <SecurityRow label="Biometric unlock"          sub="Use Face ID / fingerprint on this device"       on={prefs.biometric_enabled}      onChange={() => void togglePref('biometric_enabled')}      />
+            <SecurityRow label="Login alerts"              sub="Email me when there's a new sign-in"            on={prefs.login_alerts_enabled}   onChange={() => void togglePref('login_alerts_enabled')}   />
           </div>
           <button
             onClick={() => setShowPassword(true)}
@@ -388,10 +425,10 @@ export default function ProfileSettingsPage() {
         <div className="bg-white rounded-2xl border border-neutral-100 p-6 shadow-sm">
           <h2 className="text-[15px] font-bold text-neutral-900 mb-2">Notifications &amp; AI preferences</h2>
           <div>
-            <PrefRow label="Verification request alerts" sub="Notify me when a platform wants to verify my identity"   on={verificationAlerts} onChange={() => setVerification(v => !v)} />
-            <PrefRow label="Consent request alerts"      sub="Notify me when an app requests my data"                  on={consentAlerts}      onChange={() => setConsent(v => !v)}      />
-            <PrefRow label="AI budget nudges"            sub="Let the assistant surface spending insights proactively"  on={aiNudges}           onChange={() => setAiNudges(v => !v)}     />
-            <PrefRow label="Weekly digest email"         sub="Summary of your finances and credential activity"        on={weeklyDigest}       onChange={() => setWeekly(v => !v)}       />
+            <PrefRow label="Verification request alerts" sub="Notify me when a platform wants to verify my identity"   on={prefs.notif_verification_alerts} onChange={() => void togglePref('notif_verification_alerts')} />
+            <PrefRow label="Consent request alerts"      sub="Notify me when an app requests my data"                  on={prefs.notif_consent_alerts}      onChange={() => void togglePref('notif_consent_alerts')}      />
+            <PrefRow label="AI budget nudges"            sub="Let the assistant surface spending insights proactively"  on={prefs.notif_ai_nudges}           onChange={() => void togglePref('notif_ai_nudges')}           />
+            <PrefRow label="Weekly digest email"         sub="Summary of your finances and credential activity"        on={prefs.notif_weekly_digest}       onChange={() => void togglePref('notif_weekly_digest')}       />
           </div>
         </div>
 

@@ -3,6 +3,7 @@
 Endpoints:
   POST   /banks/exchange-token      — exchange Mono Connect code → store ConnectedBank
   GET    /banks/connected           — list all connected banks for the user
+  GET    /banks/combined-balance    — sum balances across all connected banks from Mono
   POST   /banks/{id}/sync           — re-fetch account details from Mono
   DELETE /banks/{id}                — disconnect (delete) a bank record
   GET    /banks/{id}/transactions   — proxy Mono transaction list
@@ -120,6 +121,35 @@ async def list_connected_banks(
         select(ConnectedBank).where(ConnectedBank.user_id == current_user.id)
     )
     return [ConnectedBankOut.model_validate(b) for b in result.all()]
+
+
+@router.get("/combined-balance")
+async def combined_balance(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
+    """Return the sum of balances across all connected banks, fetched live from Mono.
+
+    Returns { "total_balance": int, "currency": "NGN", "bank_count": int }.
+    Banks that fail to respond are skipped (their contribution is 0).
+    """
+    result = await db.exec(
+        select(ConnectedBank).where(ConnectedBank.user_id == current_user.id)
+    )
+    banks = result.all()
+
+    total = 0
+    for bank in banks:
+        try:
+            acct: Any = await mono_service.get_account(bank.mono_account_id)
+            acct_data: Any = acct.get("data") or acct
+            # Mono returns balance in kobo; convert to naira
+            raw_balance: Any = acct_data.get("account", {}).get("balance", 0)
+            total += int(raw_balance) // 100
+        except Exception:
+            pass  # skip banks that fail — network or sandbox limitation
+
+    return {"total_balance": total, "currency": "NGN", "bank_count": len(banks)}
 
 
 @router.post("/{bank_id}/sync", response_model=ConnectedBankOut)

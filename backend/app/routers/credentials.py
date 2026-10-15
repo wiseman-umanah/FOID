@@ -1,8 +1,11 @@
-"""Credentials router — GET /credentials/me, POST /credentials/trigger."""
+"""Credentials router — GET /credentials/me, POST /credentials/trigger, GET /credentials/qr."""
 
 from __future__ import annotations
+import io
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -30,7 +33,7 @@ async def get_my_credential(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CredentialOut:
-    """Return the authenticated user's IDRA credential."""
+    """Return the authenticated user's FOID credential."""
     credential = await _get_credential_or_404(current_user, db)
     return CredentialOut.model_validate(credential)
 
@@ -61,4 +64,55 @@ async def trigger_event(
     return TriggerResponse(
         credential=CredentialOut.model_validate(updated_cred),
         notification=NotificationOut.model_validate(notif),
+    )
+
+
+@router.get("/qr")
+async def credential_qr(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Return a QR code PNG encoding a compact JSON summary of the user's credential.
+
+    The QR payload contains only non-sensitive claims — no PII.
+    """
+    import qrcode  # type: ignore[import-untyped]
+    import qrcode.constants  # type: ignore[import-untyped]
+
+    credential = await _get_credential_or_404(current_user, db)
+
+    payload = json.dumps({
+        "foid": True,
+        "id": credential.id[:16],
+        "holder": credential.holder,
+        "state": credential.state,
+        "claims": {
+            "identity_verified":     credential.claims.get("identity_verified", False),
+            "bvn_validated":         credential.claims.get("bvn_validated", False),
+            "age_over_18":           credential.claims.get("age_over_18", False),
+            "income_band":           credential.claims.get("income_band", ""),
+            "account_stability":     credential.claims.get("account_stability", ""),
+            "repayment_reliability": credential.claims.get("repayment_reliability", ""),
+        },
+        "issued": credential.issued_at.strftime("%Y-%m-%d"),
+    }, separators=(",", ":"))
+
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=8,
+        border=3,
+    )
+    qr.add_data(payload)
+    qr.make(fit=True)
+
+    img = qr.make_image(fill_color="#18181b", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf)  # type: ignore[call-arg]
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
     )

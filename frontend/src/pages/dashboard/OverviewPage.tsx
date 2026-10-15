@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -184,6 +185,8 @@ export default function OverviewPage() {
   const [wallet, setWallet]     = useState<Wallet | null>(null)
   const [consents, setConsents] = useState<ConsentItem[]>([])
   const [ledger, setLedger]     = useState<LedgerEntry[]>([])
+  const [showQr, setShowQr]     = useState(false)
+  const [qrUrl, setQrUrl]       = useState<string | null>(null)
 
   useEffect(() => {
     void api.get<ConnectedBank[]>('/banks/connected').then(r => setBanks(r.data)).catch(() => {})
@@ -224,6 +227,7 @@ export default function OverviewPage() {
     : credential.holder || '…'
 
   return (
+    <>
     <div className="flex flex-col gap-4">
 
       {/* ── Header ── */}
@@ -381,7 +385,19 @@ export default function OverviewPage() {
             </div>
 
             {/* View FOID code button */}
-            <button className="w-full mt-3 py-2.5 border border-neutral-200 rounded-xl text-[13.5px] font-semibold text-neutral-800 flex items-center justify-center gap-2 hover:bg-neutral-50 transition-colors">
+            <button
+              onClick={() => {
+                setShowQr(true)
+                if (!qrUrl) {
+                  // Fetch QR as blob and create an object URL so it renders as <img>
+                  void api.get('/credentials/qr', { responseType: 'blob' }).then(res => {
+                    const url = URL.createObjectURL(res.data as Blob)
+                    setQrUrl(url)
+                  }).catch(() => {})
+                }
+              }}
+              className="w-full mt-3 py-2.5 border border-neutral-200 rounded-xl text-[13.5px] font-semibold text-neutral-800 flex items-center justify-center gap-2 hover:bg-neutral-50 transition-colors"
+            >
               <RemixIcon name="ri-qr-code-line font-normal" size={18} color="#18181b" />
               View my FOID code
             </button>
@@ -465,5 +481,39 @@ export default function OverviewPage() {
 
       </div>
     </div>
+
+    {/* ── QR code modal ── */}
+    {showQr && createPortal(
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.5)' }}
+        onClick={() => setShowQr(false)}
+      >
+        <div
+          className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4 w-full max-w-[320px]"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="text-[16px] font-bold text-neutral-900">Your FOID Code</div>
+          <p className="text-[12px] text-neutral-400 text-center">
+            Scan this QR code to verify your FOID credential. Contains no personal identifiers.
+          </p>
+          {qrUrl ? (
+            <img src={qrUrl} alt="FOID QR code" className="w-48 h-48 rounded-xl border border-neutral-100" />
+          ) : (
+            <div className="w-48 h-48 rounded-xl border border-neutral-100 flex items-center justify-center">
+              <RemixIcon name="ri-loader-4-line" size={32} color="#d4d4d8" />
+            </div>
+          )}
+          <button
+            onClick={() => setShowQr(false)}
+            className="w-full py-2.5 rounded-xl border border-neutral-200 text-[13px] font-bold text-neutral-800 hover:bg-neutral-50 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>,
+      document.body,
+    )}
+    </>
   )
 }

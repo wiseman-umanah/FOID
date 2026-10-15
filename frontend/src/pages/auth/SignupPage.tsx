@@ -14,7 +14,7 @@ const PWD_RULES = [
 
 export default function SignupPage() {
   const navigate = useNavigate()
-  const { signup, isAuthenticated } = useAuth()
+  const { signup, isAuthenticated, loading } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm,  setShowConfirm]  = useState(false)
   const [agreed, setAgreed]             = useState(false)
@@ -26,7 +26,7 @@ export default function SignupPage() {
     nin: '', email: '', password: '', confirmPassword: '',
   })
 
-  if (isAuthenticated) {
+  if (!loading && isAuthenticated) {
     navigate('/dashboard', { replace: true })
   }
 

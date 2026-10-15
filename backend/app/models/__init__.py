@@ -17,12 +17,14 @@ from .ledger_entry import LedgerEntry
 from .notification import Notification
 from .refresh_token import RefreshToken
 from .user import User
+from .user_preferences import UserPreferences
 from .wallet import Wallet, WalletTransaction
 
 # Re-export everything so other modules can import from app.models directly
 __all__ = [
     "SQLModel",
     "User",
+    "UserPreferences",
     "RefreshToken",
     "Credential",
     "CredentialClaims",
